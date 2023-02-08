@@ -71,7 +71,8 @@ defmodule BroadwayKafka.BrodClient do
          offset_reset_policy: offset_reset_policy,
          group_config: [{:offset_commit_policy, @offset_commit_policy} | group_config],
          fetch_config: Map.new(fetch_config || []),
-         client_config: client_config
+         client_config: client_config,
+         consumer_config: Map.new(Keyword.get(opts, :consumer_config))
        }}
     end
   end
@@ -80,7 +81,8 @@ defmodule BroadwayKafka.BrodClient do
   def setup(stage_pid, client_id, callback_module, config) do
     with :ok <- :brod.start_client(config.hosts, client_id, config.client_config),
          {:ok, group_coordinator} <-
-           start_link_group_coordinator(stage_pid, client_id, callback_module, config) do
+           start_link_group_coordinator(stage_pid, client_id, callback_module, config),
+          :ok <- :brod.start_consumer(client_id, hd(config.topics), Enum.to_list(config.consumer_config)) do
       Process.monitor(client_id)
       ref = Process.monitor(group_coordinator)
       Process.unlink(group_coordinator)
@@ -252,6 +254,9 @@ defmodule BroadwayKafka.BrodClient do
 
   defp validate_option(:begin_offset, value) when not is_integer(value) or value < 0,
     do: validation_error(:begin_offset, "a positive integer", value)
+
+  defp validate_option(:prefetch_count, value) when not is_integer(value) or value < 0,
+    do: validation_error(:prefetch_count, "a positive integer", value)
 
   defp validate_option(:max_bytes, value) when not is_integer(value) or value < 1,
     do: validation_error(:max_bytes, "a positive integer", value)
